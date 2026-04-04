@@ -673,12 +673,32 @@ function hideTyping() {
 }
 
 // ── SPEECH ───────────────────────────────────────────────────────────
+function pickVoice() {
+  var voices = S.synth.getVoices();
+  // Prefer a US English male voice — try common names across browsers
+  var prefs = ['Google US English Male', 'Microsoft Guy Online', 'Microsoft David', 'Alex', 'en-US-Guy'];
+  for (var i = 0; i < prefs.length; i++) {
+    var v = voices.find(function(v){ return v.name.indexOf(prefs[i]) !== -1; });
+    if (v) return v;
+  }
+  // Fallback: any male-sounding US English voice
+  var male = voices.find(function(v){
+    return v.lang === 'en-US' && /david|guy|eric|mark|james|tom|fred|alex/i.test(v.name);
+  });
+  if (male) return male;
+  // Fallback: any en-US voice
+  var us = voices.find(function(v){ return v.lang === 'en-US'; });
+  if (us) return us;
+  return null;
+}
 function speak(text, cb) {
   if (!S.ttsOn || !window.speechSynthesis) { if(cb) setTimeout(cb,200); return; }
   S.synth.cancel();
   var clean = text.replace(/<[^>]+>/g,'').replace(/\*\*/g,'');
   var u = new SpeechSynthesisUtterance(clean);
-  u.rate = 0.93; u.pitch = 1.0;
+  u.rate = 0.93; u.pitch = 0.95;
+  var v = pickVoice();
+  if (v) u.voice = v;
   if (cb) u.onend = cb;
   S.synth.speak(u);
 }
