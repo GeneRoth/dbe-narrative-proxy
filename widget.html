@@ -301,12 +301,22 @@
       </div>
       <div class="sf-row">
         <div class="sf">
-          <label>Industry / Type of Work</label>
-          <input type="text" id="dbe-industry" placeholder="e.g. General contracting" />
+          <label>Your Title</label>
+          <input type="text" id="dbe-title" placeholder="e.g. President &amp; CEO" />
         </div>
         <div class="sf">
           <label>Years in Business</label>
           <input type="text" id="dbe-years" placeholder="e.g. 8" />
+        </div>
+      </div>
+      <div class="sf-row">
+        <div class="sf">
+          <label>Industry / Type of Work</label>
+          <input type="text" id="dbe-industry" placeholder="e.g. General contracting" />
+        </div>
+        <div class="sf">
+          <label>City / State</label>
+          <input type="text" id="dbe-location" placeholder="e.g. Chicago, IL" />
         </div>
       </div>
       <button class="start-btn" onclick="dbeStart()">🎙️ Begin My Interview</button>
@@ -415,7 +425,7 @@ var TOPICS = [
 
 // ── STATE ────────────────────────────────────────────────────────────
 var S = {
-  name:'', firstName:'', company:'', cert:'DBE', industry:'', years:'',
+  name:'', firstName:'', company:'', cert:'DBE', industry:'', years:'', title:'', location:'',
   topicIdx: -1, awaitInput: false,
   ttsOn: true, isRec: false, recog: null, synth: window.speechSynthesis,
   sections: [], history: [], done: false,
@@ -431,8 +441,10 @@ window.dbeStart = function() {
   S.firstName = n.split(' ')[0];
   S.company   = c;
   S.cert      = document.getElementById('dbe-cert').value;
+  S.title     = document.getElementById('dbe-title').value.trim();
   S.industry  = document.getElementById('dbe-industry').value.trim();
   S.years     = document.getElementById('dbe-years').value.trim();
+  S.location  = document.getElementById('dbe-location').value.trim();
 
   document.getElementById('dbe-overlay').style.display = 'none';
   document.getElementById('dbe-pill').style.display = 'block';
@@ -768,30 +780,134 @@ window.dbeDocx = function(){
   };
   var go = function(){
     var D = window.docx;
-    var date = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-    var children = [
-      new D.Paragraph({text: S.cert+' Personal Narrative',
-        heading:D.HeadingLevel.HEADING_1, alignment:D.AlignmentType.CENTER}),
-      new D.Paragraph({children:[new D.TextRun({text:S.name+' | '+S.company,bold:true,size:24})],
-        alignment:D.AlignmentType.CENTER, spacing:{after:100}}),
-      new D.Paragraph({children:[new D.TextRun({text:date,size:22,color:'666666'})],
-        alignment:D.AlignmentType.CENTER, spacing:{after:500}}),
-    ];
+    // ── helpers ──────────────────────────────────────────────────────
+    var TNR = 'Times New Roman';
+    var bodyRpr = { font:TNR, size:24 };                      // 12 pt body
+    var sectionRpr = { font:TNR, size:28, bold:true };        // 14 pt section heading
+    var titleRpr  = { font:TNR, size:36, bold:true };         // 18 pt title
+    var spacing   = { before:160, after:160, line:360, lineRule:'auto' };
+    var spacingH  = { before:240, after:120, line:360, lineRule:'auto' };
+
+    function bodyPara(text) {
+      return new D.Paragraph({
+        children: [ new D.TextRun(Object.assign({ text: text }, bodyRpr)) ],
+        spacing: spacing
+      });
+    }
+    function sectionHead(text) {
+      return new D.Paragraph({
+        children: [ new D.TextRun(Object.assign({ text: text }, sectionRpr)) ],
+        spacing: spacingH
+      });
+    }
+    function hRule() {
+      // Horizontal rule via bottom border on a paragraph
+      return new D.Paragraph({
+        border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: 'a0a0a0', space: 1 } },
+        spacing: { before: 80, after: 80 }
+      });
+    }
+
+    // ── intro paragraph ───────────────────────────────────────────────
+    var certFull = S.cert === 'ACDBE' ? 'Airport Concession Disadvantaged Business Enterprise (ACDBE)' :
+                   S.cert === 'Both'  ? 'Disadvantaged Business Enterprise (DBE) and Airport Concession Disadvantaged Business Enterprise (ACDBE)' :
+                                        'Disadvantaged Business Enterprise (DBE)';
+    var introPara = 'I submit this Personal Narrative of Social and Economic Disadvantage in support of continued certification under the ' + certFull + ' program' + (S.cert === 'Both' ? 's' : '') + '.';
+    var intro2 = 'My name is ' + S.name + ', and I am the ' + (S.title || 'owner') + ' of ' + S.company +
+      ', a small business providing ' + (S.industry || 'services') + '. Throughout my career, I have encountered structural barriers that have limited my ability to compete on equal footing with larger, established firms, despite having the qualifications, experience, and operational capacity to perform. These barriers have affected my business historically and continue to influence my firm\'s competitive position today.';
+
+    // ── conclusion ────────────────────────────────────────────────────
+    var conclusion = 'The challenges described above arise from longstanding structural conditions within the ' + (S.industry || 'contracting') + ' industry that favor established networks, scale, and purchasing leverage. These conditions place small firms like mine at a measurable competitive disadvantage.\n\n' +
+      S.cert.replace('Both','DBE and ACDBE') + ' certification remain' + (S.cert === 'Both' ? '' : 's') + ' essential to mitigating these barriers and allowing my company to compete on the basis of merit and performance. Absent continued participation in these programs, the financial, structural, and market constraints described above would continue to limit my firm\'s ability to obtain contracts, build operating capital, and compete on terms comparable to similarly situated firms.\n\n' +
+      'I submit this statement to provide a truthful and accurate account of the disadvantages I have experienced and to demonstrate the necessity of continued ' + S.cert.replace('Both','DBE and ACDBE') + ' participation for my firm\'s viability, growth, and continued contribution as a small business.';
+
+    // ── build document children ───────────────────────────────────────
+    var children = [];
+
+    // Title
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: 'Personal Narrative of Social and Economic Disadvantage' }, titleRpr)) ],
+      spacing: { before: 100, after: 100, line: 360, lineRule: 'auto' }
+    }));
+
+    // Submitted by block
+    children.push(new D.Paragraph({
+      children: [
+        new D.TextRun(Object.assign({ text: 'Submitted by: ', bold: true }, bodyRpr)),
+        new D.TextRun(Object.assign({ text: S.name }, bodyRpr)),
+        new D.TextRun({ break: 1 }),
+        new D.TextRun(Object.assign({ text: (S.title ? S.title + ', ' : '') + S.company }, bodyRpr)),
+        new D.TextRun({ break: 1 }),
+        new D.TextRun(Object.assign({ text: S.location || '' }, bodyRpr))
+      ],
+      spacing: { before: 100, after: 100, line: 360, lineRule: 'auto' }
+    }));
+
+    // Statement of Purpose heading
+    children.push(sectionHead('Statement of Purpose'));
+
+    // Intro paragraphs
+    children.push(bodyPara(introPara));
+    children.push(bodyPara(intro2));
+
+    // Horizontal rule
+    children.push(hRule());
+
+    // Barrier sections from interview
     S.sections.forEach(function(sec){
-      children.push(new D.Paragraph({
-        children:[new D.TextRun({text:sec.label,bold:true,size:22,color:'1a3a5c'})],
-        spacing:{before:300,after:80}}));
-      children.push(new D.Paragraph({
-        children:[new D.TextRun({text:sec.text,size:24})],
-        spacing:{after:200,line:360}}));
+      children.push(sectionHead(sec.label));
+      // Split on double newlines to preserve paragraph breaks
+      var paras = sec.text.split(/\n\n+/);
+      paras.forEach(function(p){ if(p.trim()) children.push(bodyPara(p.trim())); });
     });
-    var doc = new D.Document({sections:[{children:children}]});
+
+    // Conclusion heading + text
+    children.push(sectionHead('Conclusion'));
+    var conclusionParas = conclusion.split(/\n\n+/);
+    conclusionParas.forEach(function(p){ if(p.trim()) children.push(bodyPara(p.trim())); });
+
+    // Signature block
+    children.push(new D.Paragraph({ spacing: { before: 480, after: 80 } })); // spacer
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: 'Respectfully submitted,', italics: true }, bodyRpr)) ],
+      spacing: { before: 80, after: 80 }
+    }));
+    children.push(new D.Paragraph({ spacing: { before: 80, after: 80 } })); // blank line
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: S.name }, bodyRpr)) ],
+      spacing: { before: 80, after: 40 }
+    }));
+    if (S.title) {
+      children.push(new D.Paragraph({
+        children: [ new D.TextRun(Object.assign({ text: S.title + ', ' + S.company }, bodyRpr)) ],
+        spacing: { before: 40, after: 40 }
+      }));
+    }
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: 'Date: _______________________' }, bodyRpr)) ],
+      spacing: { before: 80, after: 80 }
+    }));
+
+    // ── assemble & download ───────────────────────────────────────────
+    var doc = new D.Document({
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+          }
+        },
+        children: children
+      }]
+    });
     D.Packer.toBlob(doc).then(function(blob){
-      var url=URL.createObjectURL(blob);
-      var a=document.createElement('a');
-      a.href=url; a.download=S.company.replace(/\s+/g,'-')+'-Narrative.docx'; a.click();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = S.company.replace(/\s+/g,'-') + '-Personal-Narrative.docx';
+      a.click();
       URL.revokeObjectURL(url);
-      btn.disabled=false; btn.innerHTML='⬇️ Word';
+      btn.disabled = false; btn.innerHTML = '⬇️ Word';
     });
   };
   if (window.docx) { go(); }
