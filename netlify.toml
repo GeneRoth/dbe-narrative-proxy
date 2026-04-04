@@ -1,5 +1,3 @@
 [build]
   functions = "netlify/functions"
-
-# No publish directory needed — this project is functions-only.
-# The HTML lives on your GoDaddy site and calls this proxy.
+  publish = "."
