@@ -675,13 +675,12 @@ function hideTyping() {
 // ── SPEECH ───────────────────────────────────────────────────────────
 function pickVoice() {
   var voices = S.synth.getVoices();
-  // Priority: Google online voices (much more natural than Microsoft offline)
+  // Priority: US female — Google US English is female, Zira is MS female fallback
   var prefs = [
-    'Google UK English Male',
     'Google US English',
+    'Microsoft Zira - English (United States)',
     'Google UK English Female',
-    'Microsoft Guy Online (Natural) - English (United States)',
-    'Microsoft Davis Online (Natural) - English (United States)'
+    'Microsoft Zira Online (Natural) - English (United States)'
   ];
   for (var i = 0; i < prefs.length; i++) {
     var match = voices.find(function(v){ return v.name === prefs[i]; });
