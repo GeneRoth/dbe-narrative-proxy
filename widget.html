@@ -675,21 +675,24 @@ function hideTyping() {
 // ── SPEECH ───────────────────────────────────────────────────────────
 function pickVoice() {
   var voices = S.synth.getVoices();
-  // Prefer a US English male voice — try common names across browsers
-  var prefs = ['Google US English Male', 'Microsoft Guy Online', 'Microsoft David', 'Alex', 'en-US-Guy'];
+  // Priority: Google online voices (much more natural than Microsoft offline)
+  var prefs = [
+    'Google UK English Male',
+    'Google US English',
+    'Google UK English Female',
+    'Microsoft Guy Online (Natural) - English (United States)',
+    'Microsoft Davis Online (Natural) - English (United States)'
+  ];
   for (var i = 0; i < prefs.length; i++) {
-    var v = voices.find(function(v){ return v.name.indexOf(prefs[i]) !== -1; });
-    if (v) return v;
+    var match = voices.find(function(v){ return v.name === prefs[i]; });
+    if (match) return match;
   }
-  // Fallback: any male-sounding US English voice
-  var male = voices.find(function(v){
-    return v.lang === 'en-US' && /david|guy|eric|mark|james|tom|fred|alex/i.test(v.name);
-  });
-  if (male) return male;
-  // Fallback: any en-US voice
+  // Fallback: any non-Microsoft en-US voice
+  var nonMS = voices.find(function(v){ return v.lang === 'en-US' && v.name.indexOf('Microsoft') === -1; });
+  if (nonMS) return nonMS;
+  // Last resort: any en-US
   var us = voices.find(function(v){ return v.lang === 'en-US'; });
-  if (us) return us;
-  return null;
+  return us || null;
 }
 function speak(text, cb) {
   if (!S.ttsOn || !window.speechSynthesis) { if(cb) setTimeout(cb,200); return; }
