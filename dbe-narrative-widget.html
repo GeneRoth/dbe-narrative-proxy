@@ -1,0 +1,969 @@
+<!-- ============================================================
+     DBE / ACDBE Personal Narrative Builder — Embeddable Widget
+     Paste this into GoDaddy SiteBuilder > Custom HTML block.
+
+     BEFORE YOU PASTE: Replace the PROXY_URL below with your
+     Netlify function URL, e.g.:
+     https://your-site-name.netlify.app/.netlify/functions/claude-proxy
+     ============================================================ -->
+
+<script>
+  // ▼▼▼ REPLACE THIS WITH YOUR NETLIFY FUNCTION URL ▼▼▼
+  var DBE_PROXY_URL = 'https://jade-fenglisu-63690b.netlify.app/.netlify/functions/claude-proxy';
+  // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+</script>
+
+<style>
+#dbe-widget {
+  --navy: #1a3a5c;
+  --blue: #2e7d9f;
+  --lblue: #e8f4f8;
+  --green: #2d7a4f;
+  --bg: #f0f4f8;
+  --white: #fff;
+  --text: #1e2d3d;
+  --muted: #6b7a8d;
+  --border: #d0dbe6;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  max-width: 1100px;
+  margin: 0 auto;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 24px rgba(0,0,0,.1);
+}
+
+/* ── TOP BAR ── */
+#dbe-widget .wb {
+  background: var(--navy);
+  color: #fff;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+#dbe-widget .wb-left { display: flex; align-items: center; gap: 10px; }
+#dbe-widget .wb-icon {
+  width: 38px; height: 38px; background: var(--blue);
+  border-radius: 9px; display: flex; align-items: center;
+  justify-content: center; font-size: 18px; flex-shrink: 0;
+}
+#dbe-widget .wb-title { font-size: .95rem; font-weight: 700; }
+#dbe-widget .wb-sub   { font-size: .72rem; opacity: .72; }
+#dbe-widget .wb-right { display: flex; align-items: center; gap: 8px; }
+#dbe-widget .pill {
+  background: rgba(255,255,255,.12); border-radius: 99px;
+  padding: 3px 10px; font-size: .72rem; color: rgba(255,255,255,.85);
+  display: none; white-space: nowrap;
+}
+#dbe-widget .tts-toggle {
+  background: rgba(255,255,255,.12); border: none; color: #fff;
+  border-radius: 7px; padding: 5px 10px; font-size: .78rem;
+  cursor: pointer;
+}
+#dbe-widget .tts-toggle.off { opacity: .45; }
+
+/* ── BODY: SPLIT LAYOUT ── */
+#dbe-widget .wb-body {
+  display: flex;
+  height: 580px;
+}
+@media(max-width:680px){
+  #dbe-widget .wb-body { flex-direction: column; height: auto; }
+  #dbe-widget .narr-panel { width: 100%; height: 300px; border-left: none; border-top: 1px solid var(--border); }
+}
+
+/* ── CHAT PANEL ── */
+#dbe-widget .chat-panel {
+  display: flex; flex-direction: column;
+  flex: 1; min-width: 0; background: var(--white);
+}
+#dbe-widget .chat-msgs {
+  flex: 1; overflow-y: auto;
+  padding: 18px 16px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+#dbe-widget .msg { display: flex; gap: 9px; }
+#dbe-widget .msg.u { flex-direction: row-reverse; }
+#dbe-widget .av {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0; margin-top: 2px;
+}
+#dbe-widget .msg.ai .av { background: var(--navy); color: #fff; }
+#dbe-widget .msg.u  .av { background: var(--blue); color: #fff; }
+#dbe-widget .bbl {
+  max-width: 78%; padding: 10px 13px;
+  border-radius: 14px; font-size: .88rem; line-height: 1.58;
+}
+#dbe-widget .msg.ai .bbl {
+  background: var(--lblue); border-bottom-left-radius: 3px;
+}
+#dbe-widget .msg.u .bbl {
+  background: var(--blue); color: #fff; border-bottom-right-radius: 3px;
+}
+#dbe-widget .typing-row { display: flex; gap: 5px; padding: 10px 14px; }
+#dbe-widget .td {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--blue); opacity: .4;
+  animation: tdBounce 1.2s infinite;
+}
+#dbe-widget .td:nth-child(2) { animation-delay: .2s; }
+#dbe-widget .td:nth-child(3) { animation-delay: .4s; }
+@keyframes tdBounce {
+  0%,100%{ opacity:.3; transform:translateY(0); }
+  50%     { opacity:.9; transform:translateY(-4px); }
+}
+
+/* ── INPUT AREA ── */
+#dbe-widget .inp-area {
+  padding: 10px 12px; border-top: 1px solid var(--border);
+  background: var(--white); display: flex; gap: 7px; align-items: flex-end;
+}
+#dbe-widget .inp-area textarea {
+  flex: 1; padding: 9px 12px;
+  border: 1.5px solid var(--border); border-radius: 10px;
+  font-size: .87rem; font-family: inherit;
+  resize: none; min-height: 40px; max-height: 100px;
+  background: var(--bg); color: var(--text);
+}
+#dbe-widget .inp-area textarea:focus {
+  outline: none; border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(46,125,159,.12);
+}
+#dbe-widget .inp-area textarea:disabled { opacity: .45; cursor: not-allowed; }
+#dbe-widget .ib {
+  width: 40px; height: 40px; border: none; border-radius: 9px;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; font-size: 17px; flex-shrink: 0;
+}
+#dbe-widget .ib.mic { background: var(--bg); border: 1.5px solid var(--border); color: var(--blue); }
+#dbe-widget .ib.mic.rec { background: #fee2e2; border-color: #dc2626; color: #dc2626; animation: pulse 1s infinite; }
+#dbe-widget .ib.send { background: var(--blue); color: #fff; }
+#dbe-widget .ib:disabled { opacity: .4; cursor: not-allowed; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.55} }
+
+/* ── NARRATIVE PANEL ── */
+#dbe-widget .narr-panel {
+  width: 40%; min-width: 280px;
+  display: flex; flex-direction: column;
+  background: #fafbfc;
+  border-left: 1px solid var(--border);
+}
+#dbe-widget .narr-hdr {
+  padding: 11px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+#dbe-widget .narr-hdr h3 { font-size: .85rem; font-weight: 700; color: var(--navy); }
+#dbe-widget .narr-acts { display: flex; gap: 5px; }
+#dbe-widget .abt {
+  padding: 5px 10px; border-radius: 7px; font-size: .74rem;
+  font-weight: 600; cursor: pointer; border: none; display: flex;
+  align-items: center; gap: 3px;
+}
+#dbe-widget .abt.cp  { background: var(--bg); color: var(--blue); border: 1px solid var(--border); }
+#dbe-widget .abt.dl  { background: var(--green); color: #fff; }
+#dbe-widget .abt:disabled { opacity: .35; cursor: not-allowed; }
+#dbe-widget .narr-body {
+  flex: 1; overflow-y: auto; padding: 16px;
+}
+#dbe-widget .narr-ph {
+  height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; color: var(--muted); gap: 10px;
+}
+#dbe-widget .narr-ph .ph-icon { font-size: 34px; opacity: .35; }
+#dbe-widget .narr-ph p { font-size: .8rem; max-width: 200px; line-height: 1.5; }
+#dbe-widget .ns { margin-bottom: 18px; }
+#dbe-widget .ns-lbl {
+  font-size: .68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--blue); margin-bottom: 6px;
+  display: flex; align-items: center; gap: 6px;
+}
+#dbe-widget .ns-lbl::after { content:''; flex:1; height:1px; background: var(--border); }
+#dbe-widget .ns p { font-size: .83rem; line-height: 1.75; color: var(--text); }
+#dbe-widget .wcursor::after {
+  content:'▍'; color: var(--blue); font-size: .82em;
+  animation: blink .7s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0} }
+
+/* ── DOTS ── */
+#dbe-widget .dots {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 8px 16px; border-top: 1px solid var(--border); flex-shrink: 0;
+}
+#dbe-widget .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--border); transition: background .3s;
+}
+#dbe-widget .dot.on  { background: var(--blue); transform: scale(1.25); }
+#dbe-widget .dot.dn  { background: var(--green); }
+
+/* ── SETUP OVERLAY ── */
+#dbe-widget .overlay {
+  position: absolute; inset: 0;
+  background: rgba(15,25,40,.65); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50; border-radius: 16px;
+}
+#dbe-widget .setup-card {
+  background: var(--white); border-radius: 16px;
+  padding: 30px 26px; width: 440px; max-width: 92%;
+  box-shadow: 0 16px 48px rgba(0,0,0,.22);
+}
+#dbe-widget .sc-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+#dbe-widget .sc-icon {
+  width: 44px; height: 44px; background: var(--navy);
+  border-radius: 10px; display: flex; align-items: center;
+  justify-content: center; font-size: 20px;
+}
+#dbe-widget .sc-title { font-size: 1.1rem; font-weight: 700; color: var(--navy); }
+#dbe-widget .sc-sub {
+  font-size: .8rem; color: var(--muted); margin-bottom: 20px; line-height: 1.5;
+}
+#dbe-widget .sf { margin-bottom: 12px; }
+#dbe-widget .sf label {
+  display: block; font-size: .72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); margin-bottom: 4px;
+}
+#dbe-widget .sf input, #dbe-widget .sf select {
+  width: 100%; padding: 9px 12px;
+  border: 1.5px solid var(--border); border-radius: 9px;
+  font-size: .88rem; font-family: inherit; color: var(--text); background: var(--bg);
+}
+#dbe-widget .sf input:focus, #dbe-widget .sf select:focus {
+  outline: none; border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(46,125,159,.12);
+}
+#dbe-widget .sf-row { display: flex; gap: 9px; }
+#dbe-widget .sf-row .sf { flex: 1; }
+#dbe-widget .start-btn {
+  width: 100%; padding: 12px; margin-top: 16px;
+  background: var(--navy); color: #fff; border: none;
+  border-radius: 10px; font-size: .95rem; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center;
+  justify-content: center; gap: 7px;
+}
+#dbe-widget .start-btn:hover { background: var(--blue); }
+
+/* Spinner */
+#dbe-widget .spin {
+  display: inline-block; width: 15px; height: 15px;
+  border: 2px solid rgba(255,255,255,.35);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Fade-in */
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+#dbe-widget .msg { animation: fadeUp .25s ease; }
+</style>
+
+<!-- ════════════════════════════ WIDGET HTML ════════════════════════════ -->
+<div id="dbe-widget" style="position:relative;">
+
+  <!-- SETUP OVERLAY -->
+  <div class="overlay" id="dbe-overlay">
+    <div class="setup-card">
+      <div class="sc-logo">
+        <div class="sc-icon">📋</div>
+        <div class="sc-title">DBE / ACDBE Narrative Builder</div>
+      </div>
+      <p class="sc-sub">
+        This AI assistant will interview you about the barriers you've faced as a disadvantaged business owner, then build your personal narrative in real time.
+      </p>
+      <div class="sf">
+        <label>Your Full Name *</label>
+        <input type="text" id="dbe-name" placeholder="e.g. Michael Winters" />
+      </div>
+      <div class="sf-row">
+        <div class="sf">
+          <label>Company Name *</label>
+          <input type="text" id="dbe-company" placeholder="e.g. Andromeda Construction" />
+        </div>
+        <div class="sf">
+          <label>Certification</label>
+          <select id="dbe-cert">
+            <option value="DBE">DBE</option>
+            <option value="ACDBE">ACDBE</option>
+            <option value="DBE and ACDBE">Both</option>
+          </select>
+        </div>
+      </div>
+      <div class="sf-row">
+        <div class="sf">
+          <label>Your Title</label>
+          <input type="text" id="dbe-title" placeholder="e.g. President &amp; CEO" />
+        </div>
+        <div class="sf">
+          <label>Years in Business</label>
+          <input type="text" id="dbe-years" placeholder="e.g. 8" />
+        </div>
+      </div>
+      <div class="sf-row">
+        <div class="sf">
+          <label>Industry / Type of Work</label>
+          <input type="text" id="dbe-industry" placeholder="e.g. General contracting" />
+        </div>
+        <div class="sf">
+          <label>City / State</label>
+          <input type="text" id="dbe-location" placeholder="e.g. Chicago, IL" />
+        </div>
+      </div>
+      <button class="start-btn" onclick="dbeStart()">🎙️ Begin My Interview</button>
+    </div>
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="wb">
+    <div class="wb-left">
+      <div class="wb-icon">📋</div>
+      <div>
+        <div class="wb-title">DBE / ACDBE Personal Narrative Builder</div>
+        <div class="wb-sub">AI-assisted interview &amp; real-time narrative generation</div>
+      </div>
+    </div>
+    <div class="wb-right">
+      <div class="pill" id="dbe-pill">Topic 1 of 20</div>
+      <button class="tts-toggle" id="dbe-tts" onclick="dbeTTS()">🔊 Voice On</button>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="wb-body">
+
+    <!-- CHAT -->
+    <div class="chat-panel">
+      <div class="chat-msgs" id="dbe-msgs"></div>
+      <div class="inp-area">
+        <textarea id="dbe-inp" placeholder="Type your answer, or click 🎤 to speak…"
+          rows="1" disabled
+          onkeydown="dbeKey(event)" oninput="dbeResize(this)"></textarea>
+        <button class="ib mic" id="dbe-mic" onclick="dbeMic()" disabled>🎤</button>
+        <button class="ib send" id="dbe-send" onclick="dbeSend()" disabled>➤</button>
+      </div>
+    </div>
+
+    <!-- NARRATIVE -->
+    <div class="narr-panel">
+      <div class="narr-hdr">
+        <h3>📄 Your Narrative</h3>
+        <div class="narr-acts">
+          <button class="abt cp" onclick="dbeCopy()" id="dbe-copy" disabled>📋 Copy</button>
+          <button class="abt dl" onclick="dbeDocx()" id="dbe-dl" disabled>⬇️ Word</button>
+        </div>
+      </div>
+      <div class="narr-body" id="dbe-narr">
+        <div class="narr-ph" id="dbe-ph">
+          <div class="ph-icon">✍️</div>
+          <p>Your narrative will appear here as we work through each topic together.</p>
+        </div>
+      </div>
+      <div class="dots" id="dbe-dots"></div>
+    </div>
+
+  </div>
+</div><!-- /dbe-widget -->
+
+<!-- ════════════════════════════ SCRIPT ════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+// ── TOPIC DATA ──────────────────────────────────────────────────────
+var TOPICS = [
+  {id:1,  label:'Barriers to Accessing Capital & Financing',
+   open:'Let\'s start with access to capital and financing. Have you faced challenges getting business loans, lines of credit, or bonding? Tell me about your experience.'},
+  {id:2,  label:'Barriers to Prime Contracting Opportunities',
+   open:'Now let\'s talk about prime contracting. Have you been steered toward subcontractor roles, or found yourself excluded from prime contracting opportunities? Walk me through what that\'s looked like for you.'},
+  {id:3,  label:'Reliance on Informal Networks',
+   open:'Business in your industry often depends on who you know. Have you experienced situations where contracts went to others based on relationships rather than qualifications — while you were left out?'},
+  {id:4,  label:'Unequal Access to Information',
+   open:'Have you ever learned about a contracting opportunity too late, or felt like competitors had access to information you didn\'t? Describe what that\'s looked like.'},
+  {id:5,  label:'Barriers in Business Development & Growth',
+   open:'Let\'s talk about growing your business. Have you been ready to scale but hit walls — whether entering new markets, airports, or securing long-term contracts? What happened?'},
+  {id:6,  label:'Disparities in Past Performance Recognition',
+   open:'When you bid for contracts, how has your past performance been evaluated? Has work you did as a subcontractor not received the same credit as prime contractor work?'},
+  {id:7,  label:'Bonding and Insurance Constraints',
+   open:'Have you been unable to pursue contracts because of bonding capacity limits or higher insurance premiums? Tell me about a specific situation.'},
+  {id:8,  label:'Barriers in Supplier & Vendor Relationships',
+   open:'Have you faced less favorable pricing, terms, or access to credit from suppliers compared to larger competitors? How has that affected your ability to price competitively?'},
+  {id:9,  label:'Workforce & Staffing Challenges',
+   open:'Have you struggled to attract or retain skilled employees, or found it hard to compete with larger firms for talent? Give me a sense of what that challenge looks like.'},
+  {id:10, label:'Economic Disadvantage & Financial Position',
+   open:'How has your personal net worth or lack of financial reserves limited your ability to take on risk or grow your business?'},
+  {id:11, label:'Barriers to Entry in the Industry',
+   open:'Think back to when you first entered this industry. What were the biggest barriers — startup costs, licensing, difficulty winning those first contracts to establish credibility?'},
+  {id:12, label:'Geographic & Market Limitations',
+   open:'Has your location or the markets you operate in limited your access to high-value contracts or major airports? How has geography shaped your opportunities?'},
+  {id:13, label:'Exclusion from Decision-Making Processes',
+   open:'Have you been left out of stakeholder meetings, planning groups, or processes where important decisions were made that affected your business?'},
+  {id:14, label:'Disparities in Mentorship & Sponsorship',
+   open:'Have you lacked the kind of mentorship and sponsorship that established firms benefit from? How has that affected your business development?'},
+  {id:15, label:'Barriers in Technology & Innovation Access',
+   open:'Has limited access to technology put you at a competitive disadvantage? Can you describe a specific example?'},
+  {id:16, label:'Unequal Treatment in Contract Administration',
+   open:'Once you\'ve won contracts, have you experienced unequal treatment — stricter oversight, payment delays, or less flexibility than larger contractors seem to receive?'},
+  {id:17, label:'Historical Patterns of Exclusion',
+   open:'How have longstanding industry practices and exclusion patterns shaped your experience in this industry over time?'},
+  {id:18, label:'Impact of Business Size & Scale',
+   open:'How has your business size and limited economies of scale affected your ability to price work and absorb financial risk?'},
+  {id:19, label:'Limited Access to Professional Services',
+   open:'Have resource constraints limited your access to quality legal, financial, or consulting support? How has that affected your business decisions?'},
+  {id:20, label:'Barriers in Marketing & Visibility',
+   open:'Have you struggled to gain visibility with procurement decision-makers or found that your firm isn\'t as recognized as larger established firms?'},
+];
+
+// ── STATE ────────────────────────────────────────────────────────────
+var S = {
+  name:'', firstName:'', company:'', cert:'DBE', industry:'', years:'', title:'', location:'',
+  topicIdx: -1, awaitInput: false,
+  ttsOn: true, isRec: false, recog: null, synth: window.speechSynthesis,
+  sections: [], history: [], done: false,
+  sysprompt: '',
+};
+
+// ── SETUP ────────────────────────────────────────────────────────────
+window.dbeStart = function() {
+  var n = document.getElementById('dbe-name').value.trim();
+  var c = document.getElementById('dbe-company').value.trim();
+  if (!n || !c) { alert('Please enter your name and company name.'); return; }
+  S.name      = n;
+  S.firstName = n.split(' ')[0];
+  S.company   = c;
+  S.cert      = document.getElementById('dbe-cert').value;
+  S.title     = document.getElementById('dbe-title').value.trim();
+  S.industry  = document.getElementById('dbe-industry').value.trim();
+  S.years     = document.getElementById('dbe-years').value.trim();
+  S.location  = document.getElementById('dbe-location').value.trim();
+
+  document.getElementById('dbe-overlay').style.display = 'none';
+  document.getElementById('dbe-pill').style.display = 'block';
+  document.getElementById('dbe-inp').disabled  = false;
+  document.getElementById('dbe-mic').disabled  = false;
+  document.getElementById('dbe-send').disabled = false;
+
+  renderDots();
+  S.sysprompt = buildSys();
+  greet();
+};
+
+// ── SYSTEM PROMPT ────────────────────────────────────────────────────
+// NOTE ON FORMATTING REFERENCE: During development, a sample Personal Narrative
+// ("Covington format") was used solely to establish the correct UCP document
+// structure (section headings, signature block, Times New Roman formatting, etc.).
+// That individual's name and personal content are NOT referenced here and must
+// NEVER be used in generated output. All narrative content is drawn exclusively
+// from the current user's inputs (S.name, S.company, S.industry, etc.).
+// The Covington document informed structure only — never content.
+
+function buildSys() {
+  return 'You are a compassionate, professional AI assistant helping ' + S.name +
+    ', owner of ' + S.company + ' (' + S.cert + ' certification' +
+    (S.industry ? ', ' + S.industry : '') +
+    (S.years ? ', ' + S.years + ' years in business' : '') +
+    '), prepare their personal narrative for DBE/ACDBE recertification.\n\n' +
+    'Your role is to conduct a conversational interview — one topic at a time — across 20 barrier categories. For each topic:\n' +
+    '1. Ask the opening question already shown in the conversation.\n' +
+    '2. If the answer is vague, ask 1-2 thoughtful follow-up questions.\n' +
+    '3. If the answer is rich and specific, acknowledge warmly and move on.\n' +
+    '4. When you have enough detail, output this EXACT marker on its own line: <<<SECTION_READY>>>\n' +
+    '   Immediately after the marker, write a first-person narrative paragraph (80-150 words) for ' + S.name + '.\n' +
+    '5. After the paragraph, naturally transition to the next topic or close if done.\n' +
+    '6. After topic 20, output <<<INTERVIEW_COMPLETE>>> on its own line, then a warm closing message.\n\n' +
+    'Rules:\n' +
+    '- Be warm, encouraging, conversational — not clinical.\n' +
+    '- Ask ONE question at a time only.\n' +
+    '- Never provide information — draw out THEIR story.\n' +
+    '- Narrative paragraphs: first-person, specific, professional, appropriate for regulatory submission.\n' +
+    '- If they have nothing for a topic, briefly acknowledge and move on (still output <<<SECTION_READY>>> with a brief note).';
+}
+
+// ── INTERVIEW FLOW ───────────────────────────────────────────────────
+function greet() {
+  var msg = 'Hello, ' + S.firstName + '! I\'m your DBE/ACDBE narrative assistant. ' +
+    'I\'ll guide you through a conversation about the barriers you\'ve experienced as a disadvantaged business owner. ' +
+    'As we talk, your personal narrative will build up on the right — section by section.\n\n' +
+    'Speak freely and share as much detail as you can. The more specific your examples, the stronger your narrative will be. ' +
+    'We have 20 topic areas to cover together. Let\'s begin!';
+  addMsg('ai', msg);
+  speak(msg, function(){ setTimeout(function(){ goTopic(0); }, 700); });
+}
+
+function goTopic(idx) {
+  S.topicIdx = idx;
+  S.awaitInput = false;
+  updateProg();
+
+  var t = TOPICS[idx];
+  var intro = '<strong>Topic ' + (idx+1) + ' of 20: ' + t.label + '</strong>\n\n' + t.open;
+  S.history.push({role:'user', content:'[Topic ' + (idx+1) + ': ' + t.label + ']'});
+
+  setTimeout(function(){
+    showTyping();
+    setTimeout(function(){
+      hideTyping();
+      addMsg('ai', intro);
+      speak(t.open);
+      S.awaitInput = true;
+    }, 850);
+  }, 350);
+}
+
+window.dbeSend = function() {
+  var ta  = document.getElementById('dbe-inp');
+  var txt = ta.value.trim();
+  if (!txt || !S.awaitInput) return;
+  ta.value = ''; dbeResize(ta);
+  addMsg('u', txt);
+  S.awaitInput = false;
+  S.history.push({role:'user', content:txt});
+  showTyping();
+  callAI(function(reply){
+    hideTyping();
+    if (!reply) {
+      addMsg('ai', "I'm sorry, I had trouble connecting. Please try again.");
+      S.awaitInput = true;
+      return;
+    }
+    S.history.push({role:'assistant', content:reply});
+    processReply(reply);
+  });
+};
+
+function processReply(reply) {
+  if (reply.indexOf('<<<SECTION_READY>>>') !== -1) {
+    var parts  = reply.split('<<<SECTION_READY>>>');
+    var before = parts[0].trim();
+    var after  = (parts[1] || '').trim();
+
+    if (after.indexOf('<<<INTERVIEW_COMPLETE>>>') !== -1) {
+      var cp = after.split('<<<INTERVIEW_COMPLETE>>>');
+      var para    = cp[0].trim();
+      var closing = cp[1].trim();
+      if (para)    appendSection(TOPICS[S.topicIdx].label, para);
+      if (before)  { addMsg('ai', before); speak(before); }
+      setTimeout(function(){
+        var cm = closing || 'You\'ve completed all 20 topics! Your full narrative is ready on the right.';
+        addMsg('ai', cm); speak(cm); finish();
+      }, 500);
+      return;
+    }
+
+    var narrativePara = after;
+    if (narrativePara) appendSection(TOPICS[S.topicIdx].label, narrativePara);
+    if (before) { addMsg('ai', before); }
+    speak(before || '', function(){
+      var next = S.topicIdx + 1;
+      if (next < TOPICS.length) setTimeout(function(){ goTopic(next); }, 900);
+      else finish();
+    });
+    return;
+  }
+
+  if (reply.indexOf('<<<INTERVIEW_COMPLETE>>>') !== -1) {
+    var ps = reply.split('<<<INTERVIEW_COMPLETE>>>');
+    if (ps[0].trim()) addMsg('ai', ps[0].trim());
+    var cl = ps[1] ? ps[1].trim() : 'Your narrative is complete!';
+    setTimeout(function(){ addMsg('ai', cl); speak(cl); finish(); }, 400);
+    return;
+  }
+
+  // Normal follow-up
+  addMsg('ai', reply);
+  speak(reply);
+  S.awaitInput = true;
+}
+
+function finish() {
+  S.done = true;
+  document.getElementById('dbe-copy').disabled = false;
+  document.getElementById('dbe-dl').disabled   = false;
+  document.getElementById('dbe-inp').disabled  = true;
+  document.getElementById('dbe-mic').disabled  = true;
+  document.getElementById('dbe-send').disabled = true;
+  allDotsDone();
+}
+
+// ── API CALL ─────────────────────────────────────────────────────────
+function callAI(cb) {
+  var msgs = S.history.filter(function(m){
+    return m.content.indexOf('[Topic ') !== 0;
+  });
+  fetch(window.DBE_PROXY_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({system: S.sysprompt, messages: msgs})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (d.error) { console.error(d.error); cb(null); return; }
+    cb(d.content[0].text);
+  })
+  .catch(function(e){ console.error(e); cb(null); });
+}
+
+// ── NARRATIVE PANEL ──────────────────────────────────────────────────
+function appendSection(label, text) {
+  var body = document.getElementById('dbe-narr');
+  var ph   = document.getElementById('dbe-ph');
+  if (ph) ph.remove();
+
+  var sec = document.createElement('div');
+  sec.className = 'ns';
+  sec.innerHTML = '<div class="ns-lbl">' + label + '</div><p class="wcursor"></p>';
+  body.appendChild(sec);
+  body.scrollTop = body.scrollHeight;
+
+  var p = sec.querySelector('p');
+  var words = text.split(' ');
+  var i = 0;
+  var iv = setInterval(function(){
+    if (i < words.length) {
+      p.textContent += (i > 0 ? ' ' : '') + words[i++];
+      body.scrollTop = body.scrollHeight;
+    } else {
+      p.classList.remove('wcursor');
+      clearInterval(iv);
+    }
+  }, 38);
+
+  S.sections.push({label:label, text:text});
+  markDot(S.topicIdx, 'dn');
+}
+
+// ── DOTS ─────────────────────────────────────────────────────────────
+function renderDots() {
+  var wrap = document.getElementById('dbe-dots');
+  wrap.innerHTML = TOPICS.map(function(t,i){
+    return '<div class="dot" id="dbe-dot-'+i+'" title="'+t.label+'"></div>';
+  }).join('');
+}
+function updateProg() {
+  var i = S.topicIdx;
+  TOPICS.forEach(function(_,j){
+    var d = document.getElementById('dbe-dot-'+j);
+    if (!d) return;
+    d.className = 'dot' + (j===i?' on':(j<i?' dn':''));
+  });
+  document.getElementById('dbe-pill').textContent =
+    'Topic '+(i+1)+' of 20: '+TOPICS[i].label;
+}
+function markDot(i, cls) {
+  var d = document.getElementById('dbe-dot-'+i);
+  if (d) d.className = 'dot ' + cls;
+}
+function allDotsDone() {
+  TOPICS.forEach(function(_,i){ markDot(i,'dn'); });
+  document.getElementById('dbe-pill').textContent = '✓ Interview complete';
+}
+
+// ── CHAT HELPERS ─────────────────────────────────────────────────────
+function addMsg(role, html) {
+  var area = document.getElementById('dbe-msgs');
+  var div  = document.createElement('div');
+  div.className = 'msg ' + role;
+  var h = html.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+  div.innerHTML = '<div class="av">'+(role==='ai'?'🤖':'👤')+'</div>'
+    +'<div class="bbl">'+h+'</div>';
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+var typingEl = null;
+function showTyping() {
+  var area = document.getElementById('dbe-msgs');
+  typingEl = document.createElement('div');
+  typingEl.className = 'msg ai'; typingEl.id = 'dbe-typing';
+  typingEl.innerHTML = '<div class="av">🤖</div><div class="bbl"><div class="typing-row">'
+    +'<div class="td"></div><div class="td"></div><div class="td"></div></div></div>';
+  area.appendChild(typingEl);
+  area.scrollTop = area.scrollHeight;
+}
+function hideTyping() {
+  var el = document.getElementById('dbe-typing');
+  if (el) el.remove();
+}
+
+// ── SPEECH ───────────────────────────────────────────────────────────
+function pickVoice() {
+  var voices = S.synth.getVoices();
+  // Priority: US female — Google US English is female, Zira is MS female fallback
+  var prefs = [
+    'Google US English',
+    'Microsoft Zira - English (United States)',
+    'Google UK English Female',
+    'Microsoft Zira Online (Natural) - English (United States)'
+  ];
+  for (var i = 0; i < prefs.length; i++) {
+    var match = voices.find(function(v){ return v.name === prefs[i]; });
+    if (match) return match;
+  }
+  // Fallback: any non-Microsoft en-US voice
+  var nonMS = voices.find(function(v){ return v.lang === 'en-US' && v.name.indexOf('Microsoft') === -1; });
+  if (nonMS) return nonMS;
+  // Last resort: any en-US
+  var us = voices.find(function(v){ return v.lang === 'en-US'; });
+  return us || null;
+}
+function speak(text, cb) {
+  if (!S.ttsOn || !window.speechSynthesis) { if(cb) setTimeout(cb,200); return; }
+  S.synth.cancel();
+  var clean = text.replace(/<[^>]+>/g,'').replace(/\*\*/g,'');
+  var u = new SpeechSynthesisUtterance(clean);
+  u.rate = 0.93; u.pitch = 0.95;
+  var v = pickVoice();
+  if (v) u.voice = v;
+  if (cb) u.onend = cb;
+  S.synth.speak(u);
+}
+window.dbeTTS = function() {
+  S.ttsOn = !S.ttsOn;
+  S.synth.cancel();
+  var btn = document.getElementById('dbe-tts');
+  btn.textContent = S.ttsOn ? '🔊 Voice On' : '🔇 Voice Off';
+  btn.className   = 'tts-toggle' + (S.ttsOn ? '' : ' off');
+};
+window.dbeMic = function() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert('Speech recognition requires Chrome or Edge browser.'); return;
+  }
+  var btn = document.getElementById('dbe-mic');
+  if (S.isRec) { S.recog && S.recog.stop(); return; }
+  S.synth.cancel();
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  S.recog = new SR();
+  S.recog.lang = 'en-US'; S.recog.continuous = true; S.recog.interimResults = true;
+  var final = '';
+  S.recog.onstart = function(){ S.isRec=true; btn.classList.add('rec'); btn.textContent='⏹'; };
+  S.recog.onresult = function(e){
+    var interim='';
+    for (var i=e.resultIndex;i<e.results.length;i++){
+      if (e.results[i].isFinal) final += e.results[i][0].transcript+' ';
+      else interim += e.results[i][0].transcript;
+    }
+    var ta = document.getElementById('dbe-inp');
+    ta.value = final + interim; dbeResize(ta);
+  };
+  S.recog.onerror = S.recog.onend = function(){
+    S.isRec=false; btn.classList.remove('rec'); btn.textContent='🎤'; final='';
+  };
+  S.recog.start();
+};
+
+// ── INPUT HELPERS ────────────────────────────────────────────────────
+window.dbeKey = function(e){
+  if (e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); dbeSend(); }
+};
+window.dbeResize = function(ta){
+  ta.style.height='auto';
+  ta.style.height=Math.min(ta.scrollHeight,100)+'px';
+};
+
+// ── COPY & DOCX ──────────────────────────────────────────────────────
+window.dbeCopy = function(){
+  var txt = S.sections.map(function(s){ return s.text; }).join('\n\n');
+  navigator.clipboard.writeText(txt).then(function(){
+    var b = document.getElementById('dbe-copy');
+    b.textContent='✓ Copied!';
+    setTimeout(function(){ b.textContent='📋 Copy'; }, 2000);
+  });
+};
+
+window.dbeDocx = function(){
+  var btn = document.getElementById('dbe-dl');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>';
+  var load = function(src){
+    return new Promise(function(res,rej){
+      var s=document.createElement('script'); s.src=src;
+      s.onload=res; s.onerror=rej; document.head.appendChild(s);
+    });
+  };
+  var go = function(){
+    var D = window.docx;
+    // ── helpers ──────────────────────────────────────────────────────
+    var TNR = 'Times New Roman';
+    var bodyRpr = { font:TNR, size:24 };                      // 12 pt body
+    var sectionRpr = { font:TNR, size:28, bold:true };        // 14 pt section heading
+    var titleRpr  = { font:TNR, size:36, bold:true };         // 18 pt title
+    var spacing   = { before:160, after:160, line:360, lineRule:'auto' };
+    var spacingH  = { before:240, after:120, line:360, lineRule:'auto' };
+
+    function bodyPara(text) {
+      return new D.Paragraph({
+        children: [ new D.TextRun(Object.assign({ text: text }, bodyRpr)) ],
+        spacing: spacing
+      });
+    }
+    function sectionHead(text) {
+      return new D.Paragraph({
+        children: [ new D.TextRun(Object.assign({ text: text }, sectionRpr)) ],
+        spacing: spacingH
+      });
+    }
+    function hRule() {
+      // Horizontal rule via bottom border on a paragraph
+      return new D.Paragraph({
+        border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: 'a0a0a0', space: 1 } },
+        spacing: { before: 80, after: 80 }
+      });
+    }
+
+    // ── intro paragraph ───────────────────────────────────────────────
+    // IMPORTANT: Document structure (Times New Roman, section headings, signature
+    // block, statement of purpose, conclusion) was modeled on UCP formatting
+    // requirements using a sample narrative for reference during development.
+    // All content below is generated exclusively from the current user's session
+    // data (S.name, S.company, S.cert, S.industry, S.sections, etc.).
+    // No sample or reference individual's personal content is used here.
+    var certFull = S.cert === 'ACDBE' ? 'Airport Concession Disadvantaged Business Enterprise (ACDBE)' :
+                   S.cert === 'Both'  ? 'Disadvantaged Business Enterprise (DBE) and Airport Concession Disadvantaged Business Enterprise (ACDBE)' :
+                                        'Disadvantaged Business Enterprise (DBE)';
+    var introPara = 'I submit this Personal Narrative of Social and Economic Disadvantage in support of continued certification under the ' + certFull + ' program' + (S.cert === 'Both' ? 's' : '') + '.';
+    var intro2 = 'My name is ' + S.name + ', and I am the ' + (S.title || 'owner') + ' of ' + S.company +
+      ', a small business providing ' + (S.industry || 'services') + '. Throughout my career, I have encountered structural barriers that have limited my ability to compete on equal footing with larger, established firms, despite having the qualifications, experience, and operational capacity to perform. These barriers have affected my business historically and continue to influence my firm\'s competitive position today.';
+
+    // ── conclusion ────────────────────────────────────────────────────
+    var conclusion = 'The challenges described above arise from longstanding structural conditions within the ' + (S.industry || 'contracting') + ' industry that favor established networks, scale, and purchasing leverage. These conditions place small firms like mine at a measurable competitive disadvantage.\n\n' +
+      S.cert.replace('Both','DBE and ACDBE') + ' certification remain' + (S.cert === 'Both' ? '' : 's') + ' essential to mitigating these barriers and allowing my company to compete on the basis of merit and performance. Absent continued participation in these programs, the financial, structural, and market constraints described above would continue to limit my firm\'s ability to obtain contracts, build operating capital, and compete on terms comparable to similarly situated firms.\n\n' +
+      'I submit this statement to provide a truthful and accurate account of the disadvantages I have experienced and to demonstrate the necessity of continued ' + S.cert.replace('Both','DBE and ACDBE') + ' participation for my firm\'s viability, growth, and continued contribution as a small business.';
+
+    // ── build document children ───────────────────────────────────────
+    var children = [];
+
+    // Title
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: 'Personal Narrative of Social and Economic Disadvantage' }, titleRpr)) ],
+      spacing: { before: 100, after: 100, line: 360, lineRule: 'auto' }
+    }));
+
+    // Submitted by block
+    children.push(new D.Paragraph({
+      children: [
+        new D.TextRun(Object.assign({ text: 'Submitted by: ', bold: true }, bodyRpr)),
+        new D.TextRun(Object.assign({ text: S.name }, bodyRpr)),
+        new D.TextRun({ break: 1 }),
+        new D.TextRun(Object.assign({ text: (S.title ? S.title + ', ' : '') + S.company }, bodyRpr)),
+        new D.TextRun({ break: 1 }),
+        new D.TextRun(Object.assign({ text: S.location || '' }, bodyRpr))
+      ],
+      spacing: { before: 100, after: 100, line: 360, lineRule: 'auto' }
+    }));
+
+    // Statement of Purpose heading
+    children.push(sectionHead('Statement of Purpose'));
+
+    // Intro paragraphs
+    children.push(bodyPara(introPara));
+    children.push(bodyPara(intro2));
+
+    // Horizontal rule
+    children.push(hRule());
+
+    // Barrier sections from interview
+    S.sections.forEach(function(sec){
+      children.push(sectionHead(sec.label));
+      // Split on double newlines to preserve paragraph breaks
+      var paras = sec.text.split(/\n\n+/);
+      paras.forEach(function(p){ if(p.trim()) children.push(bodyPara(p.trim())); });
+    });
+
+    // Conclusion heading + text
+    children.push(sectionHead('Conclusion'));
+    var conclusionParas = conclusion.split(/\n\n+/);
+    conclusionParas.forEach(function(p){ if(p.trim()) children.push(bodyPara(p.trim())); });
+
+    // Signature block
+    children.push(new D.Paragraph({ spacing: { before: 480, after: 80 } })); // spacer
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: 'Respectfully submitted,', italics: true }, bodyRpr)) ],
+      spacing: { before: 80, after: 80 }
+    }));
+    children.push(new D.Paragraph({ spacing: { before: 80, after: 80 } })); // blank line
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: S.name }, bodyRpr)) ],
+      spacing: { before: 80, after: 40 }
+    }));
+    if (S.title) {
+      children.push(new D.Paragraph({
+        children: [ new D.TextRun(Object.assign({ text: S.title + ', ' + S.company }, bodyRpr)) ],
+        spacing: { before: 40, after: 40 }
+      }));
+    }
+    children.push(new D.Paragraph({
+      children: [ new D.TextRun(Object.assign({ text: 'Date: _______________________' }, bodyRpr)) ],
+      spacing: { before: 80, after: 80 }
+    }));
+
+    // ── assemble & download ───────────────────────────────────────────
+    var doc = new D.Document({
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+          }
+        },
+        children: children
+      }]
+    });
+    D.Packer.toBlob(doc).then(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = S.company.replace(/\s+/g,'-') + '-Personal-Narrative.docx';
+      a.click();
+      URL.revokeObjectURL(url);
+      btn.disabled = false; btn.innerHTML = '⬇️ Word';
+    });
+  };
+  if (window.docx) { go(); }
+  else { load('https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js').then(go); }
+};
+
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════
+     HOW THIS WAS BUILT
+═══════════════════════════════════════════════════════ -->
+<div style="background:#1a2235;border-top:1px solid #2a3a55;margin-top:0">
+  <div style="max-width:1200px;margin:0 auto;padding:32px 40px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:28px">
+      <span style="font-size:18px;color:#4fa3e0">&#x2699;</span>
+      <span style="font-size:15px;font-weight:700;color:#e8eaf0;letter-spacing:.3px">How This Was Built</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:36px">
+
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#4fa3e0;margin-bottom:12px">AI &amp; Conversation Engine</div>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">The interview is powered by <strong style="color:#e8eaf0">Claude Haiku</strong> (Anthropic), a large language model selected for speed and cost-efficiency. A custom system prompt instructs the model to conduct a structured conversation across 20 barrier topic areas defined by DBE/ACDBE certification requirements.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">As each topic is explored, Claude detects when sufficient detail has been gathered and emits a <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">&lt;&lt;&lt;SECTION_READY&gt;&gt;&gt;</code> marker — triggering the live narrative to build on-screen in real time.</p>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#e8a830;margin-bottom:12px">Voice Interface &amp; Security</div>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">Voice input uses the browser's built-in <strong style="color:#e8eaf0">Web Speech API</strong> (SpeechRecognition), and text-to-speech playback uses SpeechSynthesis — no third-party audio service required. The microphone runs entirely in the browser; no audio is ever transmitted or stored.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">The Anthropic API key is never exposed to the browser. All AI calls are routed through a <strong style="color:#e8eaf0">Netlify serverless function</strong> acting as a secure proxy, with the key stored as an environment variable server-side.</p>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#5cc87a;margin-bottom:12px">Document Output</div>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">When the interview is complete, the tool generates a formatted <strong style="color:#e8eaf0">Microsoft Word document</strong> (.docx) in the browser using <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">docx.js</code> loaded from CDN. No server is involved — the file is assembled and downloaded entirely client-side.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">The output follows the standard Personal Narrative of Social and Economic Disadvantage format: Times New Roman, structured section headings, a statement of purpose, barrier narratives, conclusion, and signature block — ready to submit for DBE/ACDBE recertification.</p>
+      </div>
+
+    </div>
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #2a3a55;font-size:12px;color:#4a5a75;text-align:center">
+      Built with Claude AI (Anthropic) &nbsp;·&nbsp; Netlify Serverless Functions &nbsp;·&nbsp; Web Speech API &nbsp;·&nbsp; docx.js &nbsp;·&nbsp; Vanilla HTML/CSS/JS &nbsp;·&nbsp; Deployed via GitHub → Netlify CI/CD
+    </div>
+  </div>
+</div>
