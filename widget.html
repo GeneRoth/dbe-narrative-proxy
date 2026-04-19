@@ -427,7 +427,7 @@ var TOPICS = [
 var S = {
   name:'', firstName:'', company:'', cert:'DBE', industry:'', years:'', title:'', location:'',
   topicIdx: -1, awaitInput: false,
-  ttsOn: true, isRec: false, recog: null, synth: window.speechSynthesis,
+  ttsOn: true, isRec: false, recog: null,
   sections: [], history: [], done: false,
   sysprompt: '',
 };
@@ -630,6 +630,14 @@ function appendSection(label, text) {
 
   S.sections.push({label:label, text:text});
   markDot(S.topicIdx, 'dn');
+
+  // Enable download buttons as soon as any narrative content exists.
+  // This ensures the user can download even if the AI never emits the
+  // <<<INTERVIEW_COMPLETE>>> marker (e.g. they stop mid-interview).
+  var cp = document.getElementById('dbe-copy');
+  var dl = document.getElementById('dbe-dl');
+  if (cp) cp.disabled = false;
+  if (dl) dl.disabled = false;
 }
 
 // ── DOTS ─────────────────────────────────────────────────────────────
@@ -685,40 +693,81 @@ function hideTyping() {
 }
 
 // ── SPEECH ───────────────────────────────────────────────────────────
-function pickVoice() {
-  var voices = S.synth.getVoices();
-  // Priority: US female — Google US English is female, Zira is MS female fallback
-  var prefs = [
-    'Google US English',
-    'Microsoft Zira - English (United States)',
-    'Google UK English Female',
-    'Microsoft Zira Online (Natural) - English (United States)'
-  ];
-  for (var i = 0; i < prefs.length; i++) {
-    var match = voices.find(function(v){ return v.name === prefs[i]; });
-    if (match) return match;
+// Text-to-speech uses Google Cloud TTS (Neural2) via the Netlify proxy.
+// The proxy route is the same claude-proxy endpoint; setting {tts:true} in
+// the request body routes to the TTS handler instead of Claude chat.
+//
+// The API key is stored server-side as GOOGLE_TTS_API_KEY and never exposed
+// to the client.
+
+var _ttsAudio = null;     // Current <audio> element (so we can stop on cancel)
+var _ttsQueue = [];       // Pending speak() calls if one is in progress
+var _ttsBusy  = false;
+
+function _cancelTTS() {
+  if (_ttsAudio) {
+    try { _ttsAudio.pause(); } catch(e){}
+    _ttsAudio.src = '';
+    _ttsAudio = null;
   }
-  // Fallback: any non-Microsoft en-US voice
-  var nonMS = voices.find(function(v){ return v.lang === 'en-US' && v.name.indexOf('Microsoft') === -1; });
-  if (nonMS) return nonMS;
-  // Last resort: any en-US
-  var us = voices.find(function(v){ return v.lang === 'en-US'; });
-  return us || null;
+  _ttsQueue = [];
+  _ttsBusy = false;
 }
+
 function speak(text, cb) {
-  if (!S.ttsOn || !window.speechSynthesis) { if(cb) setTimeout(cb,200); return; }
-  S.synth.cancel();
-  var clean = text.replace(/<[^>]+>/g,'').replace(/\*\*/g,'');
-  var u = new SpeechSynthesisUtterance(clean);
-  u.rate = 0.93; u.pitch = 0.95;
-  var v = pickVoice();
-  if (v) u.voice = v;
-  if (cb) u.onend = cb;
-  S.synth.speak(u);
+  if (!S.ttsOn) { if(cb) setTimeout(cb,200); return; }
+  var clean = (text || '').replace(/<[^>]+>/g,'').replace(/\*\*/g,'').trim();
+  if (!clean) { if(cb) setTimeout(cb,200); return; }
+
+  // If something is already playing, cancel it before starting new audio.
+  _cancelTTS();
+  _ttsBusy = true;
+
+  fetch(window.DBE_PROXY_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ tts: true, text: clean })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (!d || !d.audioContent) {
+      console.error('TTS response missing audioContent:', d && d.error);
+      _ttsBusy = false;
+      if (cb) cb();
+      return;
+    }
+    // If user toggled TTS off while we were waiting, drop the response.
+    if (!S.ttsOn) { _ttsBusy = false; if (cb) cb(); return; }
+
+    var audio = new Audio('data:audio/mp3;base64,' + d.audioContent);
+    _ttsAudio = audio;
+    audio.onended = function(){
+      _ttsBusy = false;
+      _ttsAudio = null;
+      if (cb) cb();
+    };
+    audio.onerror = function(){
+      console.error('TTS audio playback error');
+      _ttsBusy = false;
+      _ttsAudio = null;
+      if (cb) cb();
+    };
+    audio.play().catch(function(e){
+      console.error('TTS audio.play() rejected:', e);
+      _ttsBusy = false;
+      _ttsAudio = null;
+      if (cb) cb();
+    });
+  })
+  .catch(function(e){
+    console.error('TTS fetch error:', e);
+    _ttsBusy = false;
+    if (cb) cb();
+  });
 }
 window.dbeTTS = function() {
   S.ttsOn = !S.ttsOn;
-  S.synth.cancel();
+  _cancelTTS();
   var btn = document.getElementById('dbe-tts');
   btn.textContent = S.ttsOn ? '🔊 Voice On' : '🔇 Voice Off';
   btn.className   = 'tts-toggle' + (S.ttsOn ? '' : ' off');
@@ -729,7 +778,7 @@ window.dbeMic = function() {
   }
   var btn = document.getElementById('dbe-mic');
   if (S.isRec) { S.recog && S.recog.stop(); return; }
-  S.synth.cancel();
+  _cancelTTS();
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   S.recog = new SR();
   S.recog.lang = 'en-US'; S.recog.continuous = true; S.recog.interimResults = true;
@@ -772,6 +821,19 @@ window.dbeCopy = function(){
 window.dbeDocx = function(){
   var btn = document.getElementById('dbe-dl');
   btn.disabled=true; btn.innerHTML='<span class="spin"></span>';
+
+  // Restore the button on any failure so the user can retry.
+  var restoreBtn = function(){
+    btn.disabled = false;
+    btn.innerHTML = '⬇️ Word';
+  };
+  var failWith = function(msg, err){
+    if (err) console.error('dbeDocx error:', err);
+    else console.error('dbeDocx error:', msg);
+    alert('Could not generate Word document.\n\n' + msg + '\n\nPress F12 → Console for more detail.');
+    restoreBtn();
+  };
+
   var load = function(src){
     return new Promise(function(res,rej){
       var s=document.createElement('script'); s.src=src;
@@ -779,6 +841,7 @@ window.dbeDocx = function(){
     });
   };
   var go = function(){
+    try {
     var D = window.docx;
     // ── helpers ──────────────────────────────────────────────────────
     var TNR = 'Times New Roman';
@@ -901,17 +964,32 @@ window.dbeDocx = function(){
       }]
     });
     D.Packer.toBlob(doc).then(function(blob){
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = S.company.replace(/\s+/g,'-') + '-Personal-Narrative.docx';
-      a.click();
-      URL.revokeObjectURL(url);
-      btn.disabled = false; btn.innerHTML = '⬇️ Word';
+      try {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = S.company.replace(/\s+/g,'-') + '-Personal-Narrative.docx';
+        a.click();
+        URL.revokeObjectURL(url);
+        restoreBtn();
+      } catch(e) {
+        failWith('Download step failed: ' + (e && e.message ? e.message : e), e);
+      }
+    }).catch(function(e){
+      failWith('Document packaging failed: ' + (e && e.message ? e.message : e), e);
     });
+    } catch(e) {
+      failWith('Document build failed: ' + (e && e.message ? e.message : e), e);
+    }
   };
   if (window.docx) { go(); }
-  else { load('https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js').then(go); }
+  else {
+    load('https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js')
+      .then(go)
+      .catch(function(e){
+        failWith('Could not load docx.js library from CDN. Check your internet connection and try again.', e);
+      });
+  }
 };
 
 })();
@@ -930,25 +1008,26 @@ window.dbeDocx = function(){
 
       <div>
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#4fa3e0;margin-bottom:12px">AI &amp; Conversation Engine</div>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">The interview is powered by <strong style="color:#e8eaf0">Claude Haiku</strong> (Anthropic), a large language model selected for speed and cost-efficiency. A custom system prompt instructs the model to conduct a structured conversation across 20 barrier topic areas defined by DBE/ACDBE certification requirements.</p>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">As each topic is explored, Claude detects when sufficient detail has been gathered and emits a <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">&lt;&lt;&lt;SECTION_READY&gt;&gt;&gt;</code> marker — triggering the live narrative to build on-screen in real time.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">The interview is powered by <strong style="color:#e8eaf0">Claude Haiku</strong> (Anthropic), selected for response speed and cost per interaction. A custom system prompt encodes 20 barrier categories drawn from DBE/ACDBE personal narrative requirements under 49 CFR Part 26 and Part 23.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">As each topic develops, the model detects when a section has enough detail to draft and emits a <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">&lt;&lt;&lt;SECTION_READY&gt;&gt;&gt;</code> marker. The client parses that marker to assemble the narrative panel in real time, one section at a time.</p>
       </div>
 
       <div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#e8a830;margin-bottom:12px">Voice Interface &amp; Security</div>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">Voice input uses the browser's built-in <strong style="color:#e8eaf0">Web Speech API</strong> (SpeechRecognition), and text-to-speech playback uses SpeechSynthesis — no third-party audio service required. The microphone runs entirely in the browser; no audio is ever transmitted or stored.</p>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">The Anthropic API key is never exposed to the browser. All AI calls are routed through a <strong style="color:#e8eaf0">Netlify serverless function</strong> acting as a secure proxy, with the key stored as an environment variable server-side.</p>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#e8a830;margin-bottom:12px">Voice Interface &amp; API Security</div>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">Voice input uses the browser's <strong style="color:#e8eaf0">Web Speech API</strong> — microphone audio stays in the browser and is never transmitted. Voice output uses <strong style="color:#e8eaf0">Google Cloud Neural2 TTS</strong> for natural, professional-grade narration.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">Both the Anthropic and Google API keys are stored as Netlify environment variables and accessed only through a serverless proxy function. No API credentials are ever exposed to the browser.</p>
       </div>
 
       <div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#5cc87a;margin-bottom:12px">Document Output</div>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">When the interview is complete, the tool generates a formatted <strong style="color:#e8eaf0">Microsoft Word document</strong> (.docx) in the browser using <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">docx.js</code> loaded from CDN. No server is involved — the file is assembled and downloaded entirely client-side.</p>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">The output follows the standard Personal Narrative of Social and Economic Disadvantage format: Times New Roman, structured section headings, a statement of purpose, barrier narratives, conclusion, and signature block — ready to submit for DBE/ACDBE recertification.</p>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#5cc87a;margin-bottom:12px">Document Output &amp; Deployment</div>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">On demand, the tool generates a <strong style="color:#e8eaf0">Microsoft Word document</strong> client-side using <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">docx.js</code>. Output follows Personal Narrative formatting standards: Times New Roman body, structured section headings, statement of purpose, barrier narratives, conclusion, and signature block — ready for submission to the user's certifying Unified Certification Program.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">Deployed via <strong style="color:#e8eaf0">GitHub → Netlify</strong> continuous deployment. Pushes to <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">main</code> trigger an automatic build and production release.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0"><strong style="color:#e8eaf0">Governance:</strong> API credentials are isolated server-side in Netlify environment variables — never transmitted to the browser. The document template is fixed in code, so the AI cannot alter structural formatting or omit required sections. Interview transcripts and generated narratives are processed in-memory and are not logged or retained by this application; third-party API calls to Anthropic and Google Cloud follow their respective data handling policies.</p>
       </div>
 
     </div>
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid #2a3a55;font-size:12px;color:#4a5a75;text-align:center">
-      Built with Claude AI (Anthropic) &nbsp;·&nbsp; Netlify Serverless Functions &nbsp;·&nbsp; Web Speech API &nbsp;·&nbsp; docx.js &nbsp;·&nbsp; Vanilla HTML/CSS/JS &nbsp;·&nbsp; Deployed via GitHub → Netlify CI/CD
+      Claude Haiku (Anthropic) &nbsp;·&nbsp; Google Cloud Neural2 TTS &nbsp;·&nbsp; Netlify Serverless Functions &nbsp;·&nbsp; Web Speech API &nbsp;·&nbsp; docx.js &nbsp;·&nbsp; GitHub → Netlify CI/CD
     </div>
   </div>
 </div>
