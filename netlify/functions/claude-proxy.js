@@ -91,8 +91,13 @@ async function handleClaude(body) {
 
 // ---------------------------------------------------------------------------
 // Google Cloud TTS handler
-// Uses Neural2 voice en-US-Neural2-F for a warm, natural female voice.
+// Uses Chirp 3 HD voice en-US-Chirp3-HD-Orus for a warm, professional male voice.
+// Chirp 3 HD is Google's current-generation voice tier with significantly more
+// natural prosody than the legacy Neural2 voices.
 // Returns base64-encoded MP3 audio.
+//
+// Note: Chirp 3 HD voices do NOT support SSML, speakingRate, or pitch params.
+// The audioConfig intentionally omits those fields.
 // ---------------------------------------------------------------------------
 async function handleTTS(body) {
   const apiKey = process.env.GOOGLE_TTS_API_KEY;
@@ -133,12 +138,10 @@ async function handleTTS(body) {
           input: { text: text },
           voice: {
             languageCode: 'en-US',
-            name: 'en-US-Neural2-F',
+            name: 'en-US-Chirp3-HD-Orus',
           },
           audioConfig: {
             audioEncoding: 'MP3',
-            speakingRate: 0.95,
-            pitch: 0.0,
           },
         }),
       }
