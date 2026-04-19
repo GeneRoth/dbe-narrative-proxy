@@ -1,10 +1,10 @@
 // DBE Narrative Builder — Netlify Serverless Proxy
 // Handles two routes via the request body:
 //   1. Claude chat: { system, messages }                         → Anthropic Messages API
-//   2. Google TTS:  { tts: true, text: "..." }                    → Google Cloud TTS (Neural2)
+//   2. Google TTS:  { tts: true, text: "..." }                    → Google Cloud TTS (Chirp 3 HD)
 // API keys are stored as Netlify environment variables:
 //   ANTHROPIC_API_KEY   — for Claude chat
-//   GOOGLE_TTS_API_KEY  — for Google Text-to-Speech Neural2
+//   GOOGLE_TTS_API_KEY  — for Google Text-to-Speech Chirp 3 HD
 
 exports.handler = async function (event) {
   // Allow CORS preflight
