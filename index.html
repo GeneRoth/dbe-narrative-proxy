@@ -446,6 +446,18 @@ window.dbeStart = function() {
   S.years     = document.getElementById('dbe-years').value.trim();
   S.location  = document.getElementById('dbe-location').value.trim();
 
+  // ---- AUDIO UNLOCK ----
+  // Play a silent MP3 synchronously inside this click handler to unlock
+  // HTMLAudioElement playback for the rest of the session. Required because
+  // Chrome's autoplay policy blocks audio.play() calls that happen after
+  // an async fetch, even when a user gesture kicked off the chain.
+  try {
+    var _primerMp3 = 'data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAACcQCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgP////////////////////////////////////////////////8AAAA5TEFNRTMuMTAwAc0AAAAAAAAAABSAJAJAQgAAgAAAAnGMHkkIAAAAAAAAAAAAAAAAAAAA//sQxAADwAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//sQxCQDwAABpAAAACAAADSAAAAEVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
+    var primer = new Audio(_primerMp3);
+    primer.volume = 0.01;
+    primer.play().catch(function(){ /* best-effort */ });
+  } catch(e) { /* best-effort */ }
+
   document.getElementById('dbe-overlay').style.display = 'none';
   document.getElementById('dbe-pill').style.display = 'block';
   document.getElementById('dbe-inp').disabled  = false;
