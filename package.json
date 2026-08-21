@@ -1,0 +1,9 @@
+{
+  "name": "dbe-narrative-builder",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DBE/ACDBE Personal Narrative Builder — demo widget and Netlify proxy function",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

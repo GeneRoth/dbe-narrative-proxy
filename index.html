@@ -428,7 +428,6 @@ var S = {
   topicIdx: -1, awaitInput: false,
   ttsOn: true, isRec: false, recog: null,
   sections: [], history: [], done: false,
-  sysprompt: '',
 };
 
 // ── SETUP ────────────────────────────────────────────────────────────
@@ -464,31 +463,8 @@ window.dbeStart = function() {
   document.getElementById('dbe-send').disabled = false;
 
   renderDots();
-  S.sysprompt = buildSys();
   greet();
 };
-
-function buildSys() {
-  return 'You are a compassionate, professional AI assistant helping ' + S.name +
-    ', owner of ' + S.company + ' (' + S.cert + ' certification' +
-    (S.industry ? ', ' + S.industry : '') +
-    (S.years ? ', ' + S.years + ' years in business' : '') +
-    '), prepare their personal narrative for DBE/ACDBE recertification.\n\n' +
-    'Your role is to conduct a conversational interview — one topic at a time — across 20 barrier categories. For each topic:\n' +
-    '1. Ask the opening question already shown in the conversation.\n' +
-    '2. If the answer is vague, ask 1-2 thoughtful follow-up questions.\n' +
-    '3. If the answer is rich and specific, acknowledge warmly and move on.\n' +
-    '4. When you have enough detail, output this EXACT marker on its own line: <<<SECTION_READY>>>\n' +
-    '   Immediately after the marker, write a first-person narrative paragraph (80-150 words) for ' + S.name + '.\n' +
-    '5. After the paragraph, naturally transition to the next topic or close if done.\n' +
-    '6. After topic 20, output <<<INTERVIEW_COMPLETE>>> on its own line, then a warm closing message.\n\n' +
-    'Rules:\n' +
-    '- Be warm, encouraging, conversational — not clinical.\n' +
-    '- Ask ONE question at a time only.\n' +
-    '- Never provide information — draw out THEIR story.\n' +
-    '- Narrative paragraphs: first-person, specific, professional, appropriate for regulatory submission.\n' +
-    '- If they have nothing for a topic, briefly acknowledge and move on (still output <<<SECTION_READY>>> with a brief note).';
-}
 
 // ── INTERVIEW FLOW ───────────────────────────────────────────────────
 function greet() {
@@ -530,10 +506,12 @@ window.dbeSend = function() {
   S.awaitInput = false;
   S.history.push({role:'user', content:txt});
   showTyping();
-  callAI(function(reply){
+  callAI(function(reply, errMsg){
     hideTyping();
     if (!reply) {
-      addMsg('ai', "I'm sorry, I had trouble connecting. Please try again.");
+      // Show the server's message when there is one — the demo has usage
+      // limits, and "try again" is unhelpful if they have hit one.
+      addMsg('ai', errMsg || "I'm sorry, I had trouble connecting. Please try again.");
       S.awaitInput = true;
       return;
     }
@@ -597,6 +575,9 @@ function finish() {
 }
 
 // ── API CALL ─────────────────────────────────────────────────────────
+// The system prompt is built server-side from this profile. The client never
+// sends one — that is what keeps the endpoint from being used as a general
+// purpose Claude relay.
 function callAI(cb) {
   var msgs = S.history.filter(function(m){
     return m.content.indexOf('[Topic ') !== 0;
@@ -604,11 +585,20 @@ function callAI(cb) {
   fetch(window.DBE_PROXY_URL, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({system: S.sysprompt, messages: msgs})
+    body: JSON.stringify({
+      profile: {
+        name:     S.name,
+        company:  S.company,
+        cert:     S.cert,
+        industry: S.industry,
+        years:    S.years
+      },
+      messages: msgs
+    })
   })
   .then(function(r){ return r.json(); })
   .then(function(d){
-    if (d.error) { console.error(d.error); cb(null); return; }
+    if (d.error) { console.error(d.error); cb(null, d.error); return; }
     cb(d.content[0].text);
   })
   .catch(function(e){ console.error(e); cb(null); });
@@ -704,7 +694,7 @@ function hideTyping() {
 }
 
 // ── SPEECH ───────────────────────────────────────────────────────────
-// Text-to-speech uses Google Cloud TTS (Neural2) via the Netlify proxy.
+// Text-to-speech uses Google Cloud TTS (Chirp 3 HD) via the Netlify proxy.
 // The proxy route is the same claude-proxy endpoint; setting {tts:true} in
 // the request body routes to the TTS handler instead of Claude chat.
 //
@@ -1025,7 +1015,7 @@ window.dbeDocx = function(){
 
       <div>
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#e8a830;margin-bottom:12px">Voice Interface &amp; API Security</div>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">Voice input uses the browser's <strong style="color:#e8eaf0">Web Speech API</strong> — microphone audio stays in the browser and is never transmitted. Voice output uses <strong style="color:#e8eaf0">Google Cloud Neural2 TTS</strong> for natural, professional-grade narration.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">Voice input uses the browser's <strong style="color:#e8eaf0">Web Speech API</strong> — microphone audio stays in the browser and is never transmitted. Voice output uses <strong style="color:#e8eaf0">Google Cloud Chirp 3 HD TTS</strong> for natural, professional-grade narration.</p>
         <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0">Both the Anthropic and Google API keys are stored as Netlify environment variables and accessed only through a serverless proxy function. No API credentials are ever exposed to the browser.</p>
       </div>
 
@@ -1033,12 +1023,12 @@ window.dbeDocx = function(){
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#5cc87a;margin-bottom:12px">Document Output &amp; Deployment</div>
         <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">On demand, the tool generates a <strong style="color:#e8eaf0">Microsoft Word document</strong> client-side using <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">docx.js</code>. Output follows Personal Narrative formatting standards: Times New Roman body, structured section headings, statement of purpose, barrier narratives, conclusion, and signature block — ready for submission to the user's certifying Unified Certification Program.</p>
         <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0 0 10px">Deployed via <strong style="color:#e8eaf0">GitHub → Netlify</strong> continuous deployment. Pushes to <code style="background:#243050;padding:1px 5px;border-radius:3px;font-size:12px;color:#c8d8f0">main</code> trigger an automatic build and production release.</p>
-        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0"><strong style="color:#e8eaf0">Governance:</strong> API credentials are isolated server-side in Netlify environment variables — never transmitted to the browser. The document template is fixed in code, so the AI cannot alter structural formatting or omit required sections. Interview transcripts and generated narratives are processed in-memory and are not logged or retained by this application; third-party API calls to Anthropic and Google Cloud follow their respective data handling policies.</p>
+        <p style="font-size:13px;color:#8a9bb5;line-height:1.75;margin:0"><strong style="color:#e8eaf0">Governance:</strong> API credentials are isolated server-side in Netlify environment variables — never transmitted to the browser. The system prompt is constructed inside the serverless function rather than accepted from the client, so the endpoint can only run this interview and cannot be repurposed as a general-purpose model relay. Requests are additionally bounded by input-size validation, per-IP hourly limits, and global daily caps. The document template is fixed in code, so the AI cannot alter structural formatting or omit required sections. Interview transcripts and generated narratives are processed in-memory and are not logged or retained by this application; third-party API calls to Anthropic and Google Cloud follow their respective data handling policies.</p>
       </div>
 
     </div>
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid #2a3a55;font-size:12px;color:#4a5a75;text-align:center">
-      Claude Haiku (Anthropic) &nbsp;·&nbsp; Google Cloud Neural2 TTS &nbsp;·&nbsp; Netlify Serverless Functions &nbsp;·&nbsp; Web Speech API &nbsp;·&nbsp; docx.js &nbsp;·&nbsp; GitHub → Netlify CI/CD
+      Claude Haiku (Anthropic) &nbsp;·&nbsp; Google Cloud Chirp 3 HD TTS &nbsp;·&nbsp; Netlify Serverless Functions &nbsp;·&nbsp; Web Speech API &nbsp;·&nbsp; docx.js &nbsp;·&nbsp; GitHub → Netlify CI/CD
     </div>
   </div>
 </div>
